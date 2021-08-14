@@ -44,20 +44,6 @@ double[] logFactorial(const long n) {
 	return fs;
 }
 
-pragma(inline, true)
-double logHypergeometricProbability(const long[] data, const double[] fs) {
-	return
-		fs[data[0] + data[1]] +
-		fs[data[2] + data[3]] +
-		fs[data[0] + data[2]] +
-		fs[data[1] + data[3]] -
-		fs[data[0]] -
-		fs[data[1]] -
-		fs[data[2]] -
-		fs[data[3]] -
-		fs[data[0] + data[1] + data[2] + data[3]];
-}
-
 // really need to do more than this pragma to make sure the optimizer doesn't cheat
 // and inline fisherExact in to main and then start using up-front knowledge of the
 // contingency table or see that they whole "loop n times" edifice doesn't change the
@@ -71,18 +57,29 @@ double fisherExact(const long[] data) {
 	// save factorial values for repeated use in the loop below
 	const factorials = logFactorial(grandTotal);
 
+	const base =
+		factorials[data[0] + data[1]] +
+		factorials[data[2] + data[3]] +
+		factorials[data[0] + data[2]] +
+		factorials[data[1] + data[3]] -
+		factorials[data[0] + data[1] + data[2] + data[3]];
+
 	// calculate our rejection threshold
-	const pvalThreshold = logHypergeometricProbability(data, factorials);
+	const pvalThreshold =
+		base -
+		factorials[data[0]] -
+		factorials[data[1]] -
+		factorials[data[2]] -
+		factorials[data[3]];
 
 	double pvalFraction = 0;
-	foreach(i; data[3] - data[0] .. data[0] + min(data[1], data[2]) + 1) {
-		const long[4] newData = [ // being explicit about not allocating
-			i,
-			data[0] + data[1] - i,
-			data[0] + data[2] - i,
-			data[3] - data[0] + i
-		];
-		double lhgp = logHypergeometricProbability(newData, factorials);
+	foreach(long i; data[3] - data[0] .. data[0] + min(data[1], data[2]) + 1) {
+		const lhgp =
+			base -
+			factorials[i] -
+			factorials[data[0] + data[1] - i] -
+			factorials[data[0] + data[2] - i] -
+			factorials[data[3] - data[0] + i];
 
 		if(lhgp <= pvalThreshold) {
 			pvalFraction += exp(lhgp - pvalThreshold);
